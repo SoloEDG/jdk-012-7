@@ -1,10 +1,12 @@
-import type { Artwork } from "../../../shared/types";
-export function captionAt(a: Artwork, elapsed: number): string {
-  return a.transcript[
-    Math.min(
-      a.transcript.length - 1,
-      Math.floor((elapsed / a.duration) * a.transcript.length),
-    )
+import type { NarrationTrack } from "../../../shared/types";
+export function captionAt(
+  track: Pick<NarrationTrack, "transcript" | "duration">,
+  elapsed: number,
+): string {
+  const count = track.transcript.length;
+  if (!count) return "";
+  return track.transcript[
+    Math.min(count - 1, Math.floor((elapsed / track.duration) * count))
   ];
 }
 export function formatTime(seconds: number): string {

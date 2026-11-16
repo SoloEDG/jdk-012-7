@@ -1,8 +1,10 @@
 import { useState } from "react";
 import type { TourState } from "../../../shared/types";
 import { routes } from "../../../shared/catalog";
-import { tourTarget, tourRoute } from "../lib/routeProgress";
+import { tourRoute, tourTarget } from "../lib/routeProgress";
+
 const initial: TourState = { routeId: null, step: 0, phase: "idle" };
+
 export function useTour() {
   const [state, setState] = useState<TourState>(initial);
   return {
@@ -24,8 +26,8 @@ export function useTour() {
           ? { ...t, phase: "done" }
           : { ...t, step: t.step + 1, phase: "walking" };
       }),
-    pause: () => setState((t) => ({ ...t, phase: "paused" })),
-    resume: () => setState((t) => ({ ...t, phase: "walking" })),
+    pause: () => setState((t) => (t.phase === "idle" ? t : { ...t, phase: "paused" })),
+    resume: () => setState((t) => (t.phase === "paused" ? { ...t, phase: "walking" } : t)),
     stop: () => setState(initial),
   };
 }

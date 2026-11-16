@@ -1,15 +1,17 @@
 import { Heart, Download, ArrowUpRight } from "lucide-react";
-import type { GalleryDocument } from "../../../shared/types";
+import type { GalleryDocument, StoryRun } from "../../../shared/types";
 import { artworkById } from "../../../shared/catalog";
 import { recapStats, createRecap } from "../lib/recap";
 import { downloadRecap } from "../lib/download";
 export function CollectionPanel({
   document,
+  run,
   onSelect,
   onNote,
   onToggle,
 }: {
   document: GalleryDocument;
+  run?: StoryRun | null;
   onSelect: (id: string) => void;
   onNote: (id: string, text: string) => void;
   onToggle: (id: string) => void;
@@ -66,7 +68,7 @@ export function CollectionPanel({
       <button
         className="primary full"
         disabled={!stats.saved}
-        onClick={() => downloadRecap(createRecap(document))}
+        onClick={() => downloadRecap(createRecap(document, run))}
       >
         <Download size={16} />
         生成个人参观回顾

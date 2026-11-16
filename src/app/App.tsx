@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
   Heart,
@@ -9,12 +9,16 @@ import {
   Move,
   Info,
   X,
+  Footprints,
+  BookOpen,
+  Play,
 } from "lucide-react";
 import { Viewport, Map } from "../features/space";
 import { ArtworkList, ArtworkDetail } from "../features/catalog";
 import { TourPanel } from "../features/tours";
 import { AudioPlayer } from "../features/narration";
 import { CollectionPanel } from "../features/collection";
+import { StoryPanel, StoryRecap, StoryDock } from "../features/story";
 import { artworks, artworkById } from "../shared/catalog";
 import { useGallery } from "./useGallery";
 export default function App() {
@@ -23,7 +27,17 @@ export default function App() {
   const [mapOpen, setMapOpen] = useState(false);
   const [help, setHelp] = useState(false);
   const [side, setSide] = useState("works");
+  const [library, setLibrary] = useState("tours");
   const a = artworkById(g.catalog.active);
+  const storyRun = g.story.run;
+  const storyNode = g.story.node;
+  const storyArtwork = storyNode ? artworkById(storyNode.artworkId) : null;
+  const storyOn = !!storyRun && !!storyNode;
+  // A restored or newly started run should surface its panel, including after
+  // the visitor refreshes the page.
+  useEffect(() => {
+    if (g.story.run) setLibrary("story");
+  }, [g.story.run?.storyId]);
   return (
     <div className="app">
       <header>
@@ -55,8 +69,7 @@ export default function App() {
               {g.collection.document.favorites.length}
             </span>
           </button>
-        </nav>
-        <div className="header-meta">
+        </nav>        <div className="header-meta">
           <span className="live-dot" />
           线上展览 · 全天开放
           <button
@@ -113,7 +126,7 @@ export default function App() {
           )}
           <TourPanel
             state={g.tour.state}
-            onStart={g.tour.start}
+            onStart={g.startTour}
             onPause={g.pauseTour}
             onResume={g.tour.resume}
             onStop={g.stopTour}
@@ -144,9 +157,13 @@ export default function App() {
               onSelect={g.go}
             />
             <div className="scene-top">
-              <span>
+              <span data-testid="scene-mode">
                 <span className="live-dot" />
-                自由探索中
+                {g.reviewNode
+                  ? `回看 · ${g.reviewNode.title}`
+                  : storyRun
+                    ? `${g.story.story?.name} · 故事版本 v${storyRun.version}`
+                    : "自由探索中"}
               </span>
               <button
                 className="glass-button"
@@ -164,11 +181,27 @@ export default function App() {
             <div className="center-cross">+</div>
             <div className="scene-location">
               <MapPin size={15} />
-              {g.catalog.nearby ? a?.title : "万物之间 · 主展厅"}
+              {storyOn && !g.reviewNode && !storyRun?.paused
+                ? storyArtwork?.title
+                : g.catalog.nearby
+                  ? a?.title
+                  : "万物之间 · 主展厅"}
               <small>
-                {g.catalog.nearby
-                  ? "靠近作品 · 可收听讲解"
-                  : "拖动视角，发现你的下一次共鸣"}
+                {g.reviewNode
+                  ? "正在回看已走过的章节 · 不影响当前路线"
+                  : storyOn
+                    ? storyRun?.paused
+                      ? "故事已暂停 · 自由浏览，继续后回到故事作品前"
+                      : storyRun?.status === "walking"
+                        ? "故事正在前往作品前"
+                        : storyRun?.status === "choice"
+                          ? "请回答当前问题 · 故事等待你的选择"
+                          : storyRun?.status === "done"
+                            ? "当前路线已完成 · 可回看或重做选择"
+                            : "故事讲解中 · 与字幕同步"
+                    : g.catalog.nearby
+                      ? "靠近作品 · 可收听讲解"
+                      : "拖动视角，发现你的下一次共鸣"}
               </small>
             </div>
             <div
@@ -206,7 +239,13 @@ export default function App() {
             </div>
           </div>
           <div className="scene-caption">
-            <span>让每一次停留，都成为一次发现。</span>
+            <span>
+              {g.reviewNode
+                ? "回看只复读听过的事实，不改变故事因果。"
+                : storyOn
+                  ? "空间、字幕与回顾使用同一故事版本。"
+                  : "让每一次停留，都成为一次发现。"}
+            </span>
             <span>
               沉浸式三维艺术体验 <Volume2 size={14} />
             </span>
@@ -214,16 +253,25 @@ export default function App() {
           <div className="discover-strip">
             <div>
               <span className="eyebrow">A MOMENT OF DISCOVERY</span>
-              <h3>不止于观看，更在于感受。</h3>
-              <p>走近一件作品，听一段故事。让艺术与此刻的你，产生连接。</p>
+              <h3>你的回答，决定下一段路。</h3>
+              <p>
+                在指定作品前回答问题，分支路线与讲解随之改变；同一件作品可以再次经过，语境不同，收藏中仍只有一件。
+              </p>
             </div>
             <button
               onClick={() => {
-                g.tour.start("nature");
-                setTab("journeys");
+                if (g.story.run) {
+                  setTab("journeys");
+                  setLibrary("story");
+                } else {
+                  g.startStory("echo-path");
+                  setTab("journeys");
+                  setLibrary("story");
+                }
               }}
             >
-              开启主题之旅 <ArrowUpRight size={19} />
+              {g.story.run ? "回到策展故事" : "开启分支故事"}
+              <ArrowUpRight size={19} />
             </button>
           </div>
           <div className="art-tags">
@@ -237,27 +285,86 @@ export default function App() {
         </section>
         <aside className="right-sidebar">
           {tab === "collection" ? (
-            <CollectionPanel
-              document={g.collection.document}
-              onSelect={g.go}
-              onNote={g.collection.note}
-              onToggle={g.collection.toggle}
-            />
+            <>
+              <CollectionPanel
+                document={g.collection.document}
+                run={g.story.run}
+                onSelect={g.go}
+                onNote={g.collection.note}
+                onToggle={g.collection.toggle}
+              />
+              <StoryRecap
+                recap={g.storyRecap}
+                onReview={(id) => {
+                  g.reviewStory(id);
+                  setTab("journeys");
+                  setLibrary("story");
+                }}
+              />
+            </>
           ) : tab === "journeys" ? (
             <>
               <div className="journey-intro">
                 <div className="eyebrow">FOLLOW YOUR CURIOSITY</div>
                 <h2>沿着共鸣，出发。</h2>
-                <p>选择一条路线，空间导航与作品讲解将陪伴你完成这段旅程。</p>
+                <p>
+                  主题导览按固定顺序前行；策展故事由你的回答分岔，并允许回到上一个选择重做。
+                </p>
               </div>
-              <TourPanel
-                state={g.tour.state}
-                onStart={g.tour.start}
-                onPause={g.pauseTour}
-                onResume={g.tour.resume}
-                onStop={g.stopTour}
-                onNext={g.nextTour}
-              />
+              <div className="library-tabs" role="tablist">
+                <button
+                  role="tab"
+                  aria-selected={library === "tours"}
+                  className={library === "tours" ? "active" : ""}
+                  onClick={() => setLibrary("tours")}
+                >
+                  <Footprints size={13} /> 主题导览
+                </button>
+                <button
+                  role="tab"
+                  aria-selected={library === "story"}
+                  className={library === "story" ? "active" : ""}
+                  onClick={() => setLibrary("story")}
+                >
+                  <BookOpen size={13} /> 策展故事
+                  {g.story.run && <span className="live-dot" />}
+                </button>
+              </div>
+              {library === "story" ? (
+                <StoryPanel
+                  run={g.story.run}
+                  story={g.story.story}
+                  node={g.story.node}
+                  choices={g.story.choices}
+                  error={g.story.error}
+                  document={g.collection.document}
+                  onStart={g.startStory}
+                  onChoose={g.chooseStory}
+                  onRewind={g.rewindStory}
+                  onPause={g.pauseStory}
+                  onResume={g.resumeStory}
+                  onStop={g.stopStory}
+                  onReview={g.reviewStory}
+                  onDismissNotice={g.story.clearNotice}
+                  onDismissError={g.story.dismissError}
+                />
+              ) : (
+                <TourPanel
+                  state={g.tour.state}
+                  onStart={g.startTour}
+                  onPause={g.pauseTour}
+                  onResume={g.tour.resume}
+                  onStop={g.stopTour}
+                  onNext={g.nextTour}
+                />
+              )}
+              {g.reviewNode && (
+                <div className="review-banner" role="status">
+                  <Play size={13} />
+                  正在回看「{g.reviewNode.title}」· 不影响当前路线
+                  <button onClick={g.stopReview}>返回故事</button>
+                </div>
+              )}
             </>
           ) : (
             <ArtworkDetail
@@ -265,11 +372,13 @@ export default function App() {
               saved={g.collection.document.favorites.includes(
                 g.catalog.active || "",
               )}
+              savedCount={g.collection.document.favorites.length}
+              revisitNote={g.storyRevisitNote}
               onFavorite={() => {
                 if (g.catalog.active) g.collection.toggle(g.catalog.active);
               }}
               onListen={() => {
-                if (g.catalog.active) g.narration.play(g.catalog.active);
+                if (g.catalog.active) g.listenToArtwork(g.catalog.active);
               }}
               onGo={() => {
                 if (g.catalog.active) g.go(g.catalog.active);
@@ -299,6 +408,19 @@ export default function App() {
         onToggle={g.narration.toggle}
         onSeek={g.narration.seek}
         onRate={g.narration.rate}
+      />
+      <StoryDock
+        run={storyRun}
+        story={g.story.story}
+        node={storyNode}
+        paused={!!storyRun?.paused}
+        status={storyRun?.status || "idle"}
+        onResume={g.resumeStory}
+        onRewind={g.rewindStory}
+        onOpen={() => {
+          setTab("journeys");
+          setLibrary("story");
+        }}
       />
       {(mapOpen || help) && (
         <div
@@ -334,10 +456,10 @@ export default function App() {
                   点击画中的作品或左侧列表，自动前往。靠近作品后，右侧切换介绍。
                 </p>
                 <p>
-                  主题导览会带你依次前往作品并开始讲解。收藏喜欢的作品，在“我的收藏”写下感想并下载参观回顾。
+                  主题导览按固定顺序前行。策展故事会在指定作品前提问，你的回答决定下一段路线与讲解；可以返回一个选择重做，已听过的事实和奖励保留。
                 </p>
                 <p>
-                  讲解由设备的中文语音合成播放；没有中文语音时仍可阅读同步字幕。
+                  讲解由设备的中文语音合成播放；没有中文语音时仍可阅读同步字幕。同一件作品再次经过时，空间、字幕与回顾会使用同一个故事版本。
                 </p>
               </>
             ) : (

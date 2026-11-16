@@ -3,12 +3,16 @@ import { artworkById } from "../../../shared/catalog";
 export function ArtworkDetail({
   id,
   saved,
+  savedCount,
+  revisitNote,
   onFavorite,
   onListen,
   onGo,
 }: {
   id: string | null;
   saved: boolean;
+  savedCount?: number;
+  revisitNote?: string | null;
   onFavorite: () => void;
   onListen: () => void;
   onGo: () => void;
@@ -38,6 +42,12 @@ export function ArtworkDetail({
       </p>
       <p className="medium">{a.medium}</p>
       <p className="description">{a.description}</p>
+      {revisitNote && <p className="revisit-note">{revisitNote}</p>}
+      <p className="save-hint">
+        {saved
+          ? `已收藏 · 收藏中共 ${savedCount ?? 0} 件作品，同一作品不会因故事重复经过而重复计入。`
+          : "收藏只保留作品本身；故事里的不同语境会记录在参观回顾中。"}
+      </p>
       <div className="detail-actions">
         <button className="primary" onClick={onListen}>
           <Headphones size={16} />
